@@ -76,7 +76,7 @@ class CUGraphBackEnd(object):
         """
         Given a graph and node return the neighbors.
         """
-        return graph.neighbors(node)
+        return graph.neighbors(node).to_array()
 
 
     def get_random_neighbor(self, graph: CUGraph, node: int) -> int:
