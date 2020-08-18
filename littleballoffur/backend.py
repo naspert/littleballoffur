@@ -2,11 +2,159 @@ import random
 import numpy as np
 import networkx as nx
 import networkit as nk
+import cugraph
+import cudf
 from typing import List, Tuple
 
 
 NKGraph = type(nk.graph.Graph())
 NXGraph = nx.classes.graph.Graph
+CUGraph = cugraph.structure.graph.Graph
+CUSeries = cudf.core.series.Series
+
+class CUGraphBackEnd(object):
+    """
+    Binding the CUGraph backend to serve graph operations.
+    """
+
+    def __init__(self):
+        pass
+
+    def get_number_of_nodes(self, graph: CUGraph) -> int:
+        """
+        Given a graph return the number of nodes.
+        """
+        return graph.number_of_nodes()
+
+    def get_number_of_edges(self, graph: CUGraph) -> int:
+        """
+        Given a graph return the number of edges.
+        """
+        return graph.number_of_edges()
+
+    def get_nodes(self, graph: CUGraph) -> CUSeries:
+        """
+        Given a graph return the nodes.
+        """
+        return graph.nodes()
+
+    def get_edges(self, graph: CUGraph) -> CUSeries:
+        """
+        Given a graph return the edges.
+        """
+        return graph.edges()
+
+    def get_node_iterator(self, graph: CUGraph):
+        """
+        Given a graph return the node iterator.
+        """
+        raise NotImplemented()
+
+
+    def get_edge_iterator(self, graph: CUGraph):
+        """
+        Given a graph return the edge iterator.
+        """
+        raise NotImplemented()
+
+
+    def get_degree(self, graph: CUGraph, node: int) -> int:
+        """
+        Given a graph and node return the degree.
+        """
+        return len(self.get_neighbors(graph))
+
+
+    def get_subgraph(self, graph: CUGraph, nodes: List[int]) -> CUGraph:
+        """
+        Given a graph and set of inducing nodes return a subgraph.
+        """
+        return cugraph.community.subgraph_extraction.subgraph(graph, cudf.Series(nodes))
+
+
+    def get_neighbors(self, graph: CUGraph, node: int) -> List[int]:
+        """
+        Given a graph and node return the neighbors.
+        """
+        return graph.neighbors(node)
+
+
+    def get_random_neighbor(self, graph: CUGraph, node: int) -> int:
+        """
+        Given a graph and node returns a random neighbor.
+        """
+        raise NotImplemented()
+
+
+    def get_shortest_path(self, graph: CUGraph, source: int, target: int) -> List[int]:
+        """
+        Given a graph, a source and target node pair get the shortest path
+        """
+        path = []
+        short = cugraph.sssp(graph, source)
+        pred = short['predecessor'][1]
+        if pred == -1: # no path
+            return path
+        path.append(pred)
+        while pred != source:
+            p1 = short.query('vertex=={}'.format(pred))
+            pred = p1['predecessor'].iloc[0]
+            path.append(pred)
+        path.reverse()
+        path.append(target)
+        return path
+
+
+    def get_pagerank(self, graph: CUGraph, alpha: float) -> np.array:
+        """
+        Given a graph return the PageRank vector.
+        """
+        pagerank = cugraph.link_analysis.pagerank(graph, alpha=alpha)
+        pagerank = pagerank['pagerank'].to_array()
+        pagerank = pagerank / pagerank.sum()
+        return pagerank
+
+
+    def graph_from_edgelist(self, edges: List) -> CUGraph:
+        """
+        Given an edge list generate a graph.
+        """
+        new_graph = cugraph.Graph()
+        new_graph.from_cudf_edgelist(cudf.DataFrame(edges), source=0, destination=1)
+        return new_graph
+
+
+    def _check_cugraph_graph(self, graph: CUGraph):
+        """Chechking the input type."""
+        assert isinstance(graph, CUGraph), "This is not a NetworKit graph."
+
+
+    def _check_connectivity(self, graph: CUGraph):
+        """Checking the connected nature of a single graph."""
+        connected = cugraph.strongly_connected_components(graph)
+        assert connected['labels'].max() == 0, "Graph is not connected."
+
+
+    def _check_directedness(self, graph: CUGraph):
+        """Checking the undirected nature of a single graph."""
+        directed = graph.is_directed()
+        assert directed == False, "Graph is directed."
+
+
+    def _check_indexing(self, graph: CUGraph):
+        """Checking the consecutive numeric indexing."""
+        numeric_indices = graph.number_of_nodes() - 1
+        node_indices = graph.nodes().max()
+        assert numeric_indices == node_indices, "The node indexing is wrong."
+
+
+    def check_graph(self, graph: NKGraph):
+        """Check the Little Ball of Fur assumptions about the graph."""
+        self._check_cugraph_graph(graph)
+        self._check_connectivity(graph)
+        self._check_directedness(graph)
+        self._check_indexing(graph)
+
 
 
 class NetworKitBackEnd(object):
