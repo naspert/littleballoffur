@@ -2,13 +2,16 @@ import random
 import numpy as np
 import networkx as nx
 import networkit as nk
+import cugraph
 from typing import Union
 from littleballoffur.backend import NetworKitBackEnd
 from littleballoffur.backend import NetworkXBackEnd
+from littleballoffur.backend import CUGraphBackEnd
 
 
 NKGraph = type(nk.graph.Graph())
 NXGraph = nx.classes.graph.Graph
+CUGraph = cugraph.structure.graph.Graph
 
 
 class Sampler(object):
@@ -34,6 +37,9 @@ class Sampler(object):
             self.backend.check_graph(graph)
         elif isinstance(graph, NXGraph):
             self.backend = NetworkXBackEnd()
+            self.backend.check_graph(graph)
+        elif isinstance(graph, CUGraph):
+            self.backend = CUGraphBackEnd()
             self.backend.check_graph(graph)
         else:
             raise ValueError("Not a NetworKit or NetworkX graph.")
